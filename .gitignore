@@ -1,0 +1,20 @@
+# Genome data and generated datasets
+data/raw/
+data/interim/
+data/processed/
+
+# Generated figures
+figures/
+
+# Jupyter
+.ipynb_checkpoints/
+*.html
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Environment and editor files
+.env
+.DS_Store
+.vscode/

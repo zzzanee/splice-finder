@@ -1,0 +1,43 @@
+name: splicefind
+channels:
+  - conda-forge
+  - bioconda
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib
+  - seaborn
+  - scikit-learn
+
+  # Bioinformatics
+  - biopython
+  - gffutils
+
+  # Bayesian
+  - pymc
+  - arviz
+
+  # Boosted trees (for stretch-goal model comparison)
+  - py-xgboost
+
+  # CLI
+  - click
+
+  # Testing
+  - pytest
+
+  # Notebooks
+  - jupyterlab
+  - ipykernel
+
+  # Optional: only needed if you build the neural net / interval-tree stretch goals
+  # - pytorch
+  # - ncls          # efficient interval overlap queries (bioconda)
+
+  - pip:
+      - shap
