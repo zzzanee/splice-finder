@@ -2,8 +2,8 @@
     File: build_dataset.py
     Description:
         This file collects a genome's fasta and GFF files and will create a csv
-        containing splice donor/acceptor sites, and randomly selected 
-        non-splice site windows 
+        containing splice donor/acceptor sites, randomly selected non-site 
+        windows, and genomic hard negatives centered on GT or AG motifs 
 
     Example:
         python build_dataset.py \
@@ -11,14 +11,15 @@
             --annotation data/raw/annotation.gff3 \
             --output data/processed/splice_dataset.csv \
             --window 40 \
+            --hard-negative-fraction 0.5 \
             --exclude-chrom NC_001224.1
     
     Output:
         splice_dataset.csv        
     
-    See `python build_dataset.py --help` for options
+    See `python scripts/build_dataset.py --help` for options
     Date Created: 8/20/2026
-    Date Last Modified: 9/27/2026   
+    Date Last Modified: 10/5/2026   
 """
 import argparse
 import random
@@ -79,6 +80,16 @@ def parse_args():
         help="Random seed used when sampling negative examples.",
     )
     parser.add_argument(
+        "--hard-negative-fraction",
+        type=float,
+        default=0.5,
+        help=(
+            "Fraction of negative examples centered on genomic GT or AG "
+            "motifs. The targeted examples are divided equally between "
+            "donor-like GT and acceptor-like AG motifs."
+        ),
+    )
+    parser.add_argument(
         "--exclude-chrom",
         action="append",
         default=["NC_001224.1"],
@@ -109,6 +120,10 @@ def validate_args(args):
         raise ValueError("--window must be greater than zero")
     if args.seed < 0:
         raise ValueError("--seed must be zero or greater")
+    if not 0 <= args.hard_negative_fraction <= 1:
+            raise ValueError(
+                "--hard-negative-fraction must be between zero and one"
+            )
 
 
 def get_window(chrom_record, anchor_1based, strand, window):
@@ -458,6 +473,7 @@ def extract_positive_examples(
                     "position": anchor,
                     "intron_start": intron_start,
                     "intron_end": intron_end,
+                    "negative_type": None,
                 }
             )
 
@@ -481,10 +497,16 @@ def generate_negative_examples(
     count,
     window,
     rng,
+    hard_negative_fraction=0.5,
+    used_sequences=None,
 ):
     """
-    Generates random non-splice-site sequence windows while avoiding annotated
-    splice boundaries and duplicate sampling positions.
+    Generates background and motif-centered genomic negative examples.
+
+    Hard negatives are extracted from real genomic positions that contain a
+    centered donor-like GT or acceptor-like AG motif after strand orientation.
+    All negative examples avoid annotated splice boundaries, duplicate
+    positions, and sequences already used by positive examples.
 
     PARAMETERS
     ----------
@@ -500,6 +522,11 @@ def generate_negative_examples(
         number of bases to extract on each side of each sampled position
     rng : random.Random
         initialized random-number generator used for reproducible sampling
+    hard_negative_fraction : float, optional
+        fraction of negatives targeted to centered GT or AG motifs, by default
+        0.5
+    used_sequences : set[str] or None, optional
+        positive sequences that cannot be reused as negatives, by default None
 
     RETURNS
     -------
@@ -535,79 +562,113 @@ def generate_negative_examples(
         for seqid in chromosome_ids
     ]
 
+    if used_sequences is None:
+        used_sequences = set()
+
+    hard_count = round(count * hard_negative_fraction)
+    hard_donor_count = hard_count // 2
+    hard_acceptor_count = hard_count - hard_donor_count
+    background_count = count - hard_count
+
+    sampling_targets = [
+        ("background", background_count),
+        ("hard_donor_gt", hard_donor_count),
+        ("hard_acceptor_ag", hard_acceptor_count),
+    ]
+
     rows = []
     selected_positions = set()
-    attempts = 0
-    max_attempts = count * 50
+    selected_sequences = set(used_sequences)
 
-    while len(rows) < count and attempts < max_attempts:
-        attempts += 1
+    for negative_type, target_count in sampling_targets:
+        category_rows = []
+        attempts = 0
+        max_attempts = max(1000, target_count * 500)
 
-        seqid = rng.choices(
-            chromosome_ids,
-            weights=chromosome_weights,
-            k=1,
-        )[0]
+        while len(category_rows) < target_count and attempts < max_attempts:
+            attempts += 1
 
-        chrom = genome[seqid]
-        chrom_len = len(chrom.seq)
+            seqid = rng.choices(
+                chromosome_ids,
+                weights=chromosome_weights,
+                k=1,
+            )[0]
 
-        position = rng.randint(
-            window + 1,
-            chrom_len - window - 1,
-        )
-
-        position_key = (seqid, position)
-
-        if position_key in selected_positions:
-            continue
-
-        near_splice_site = any(
-            (seqid, nearby_position) in used_positions
-            for nearby_position in range(
-                position - window,
-                position + window + 1,
+            chrom = genome[seqid]
+            chrom_len = len(chrom.seq)
+            position = rng.randint(
+                window + 1,
+                chrom_len - window - 1,
             )
+            strand = rng.choice(("+", "-"))
+            position_key = (seqid, position)
+
+            if position_key in selected_positions:
+                continue
+
+            near_splice_site = any(
+                (seqid, nearby_position) in used_positions
+                for nearby_position in range(
+                    position - window,
+                    position + window + 1,
+                )
+            )
+
+            if near_splice_site:
+                continue
+
+            sequence = get_window(
+                chrom_record=chrom,
+                anchor_1based=position,
+                strand=strand,
+                window=window,
+            )
+
+            if len(sequence) != 2 * window:
+                continue
+            if sequence in selected_sequences:
+                continue
+
+            has_donor_gt = sequence[window:window + 2] == "GT"
+            has_acceptor_ag = sequence[window - 1:window + 1] == "AG"
+
+            if negative_type == "hard_donor_gt" and not has_donor_gt:
+                continue
+            if negative_type == "hard_acceptor_ag" and not has_acceptor_ag:
+                continue
+
+            selected_positions.add(position_key)
+            selected_sequences.add(sequence)
+
+            category_rows.append(
+                {
+                    "sequence": sequence,
+                    "label": "none",
+                    "chrom": seqid,
+                    "strand": strand,
+                    "position": position,
+                    "intron_start": None,
+                    "intron_end": None,
+                    "negative_type": negative_type,
+                }
+            )
+
+        print(
+            f"  generated {len(category_rows)} {negative_type} examples "
+            f"after {attempts} attempts"
         )
 
-        if near_splice_site:
-            continue
+        if len(category_rows) < target_count:
+            raise RuntimeError(
+                f"Only generated {len(category_rows)} of the requested "
+                f"{target_count} {negative_type} examples after {attempts} "
+                "attempts. Try reducing --hard-negative-fraction or the "
+                "window size."
+            )
 
-        sequence = get_window(
-            chrom_record=chrom,
-            anchor_1based=position,
-            strand="+",
-            window=window,
-        )
+        rows.extend(category_rows)
 
-        if len(sequence) != 2 * window:
-            continue
-
-        selected_positions.add(position_key)
-
-        rows.append(
-            {
-                "sequence": sequence,
-                "label": "none",
-                "chrom": seqid,
-                "strand": "+",
-                "position": position,
-                "intron_start": None,
-                "intron_end": None,
-            }
-        )
-
-    print(
-        f"  generated {len(rows)} negative examples "
-        f"after {attempts} attempts"
-    )
-
-    if len(rows) < count:
-        raise RuntimeError(
-            f"Only generated {len(rows)} of the requested {count} "
-            f"negative examples after {attempts} attempts. "
-            "Try reducing the window size or reviewing the excluded regions."
-        )
+    print(f"  generated {len(rows)} total negative examples")
 
     return rows
 
@@ -719,6 +780,8 @@ def main(args):
         count=len(positive_rows),
         window=args.window,
         rng=rng,
+        hard_negative_fraction=args.hard_negative_fraction,
+        used_sequences={row["sequence"] for row in positive_rows},
     )
 
     all_rows = positive_rows + negative_rows

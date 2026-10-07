@@ -18,7 +18,6 @@ development.
 Initial development and testing use the
 [_Saccharomyces cerevisiae_ S288C reference genome](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_000146045.1/),
 available from NCBI.
-
 The mitochondrial chromosome is excluded by default because its group I and
 group II introns use different splicing mechanisms from nuclear introns.
 
@@ -79,6 +78,7 @@ python scripts/build_dataset.py \
     --output data/processed/splice_dataset.csv \
     --window 40 \
     --seed 42 \
+    --hard-negative-fraction 0.5 \
     --exclude-chrom NC_001224.1
 ```
 
@@ -104,15 +104,16 @@ data/processed/splice_dataset.csv
 
 Each row represents one genomic sequence window.
 
-| Column         | Description                                            |
-| -------------- | ------------------------------------------------------ |
-| `sequence`     | DNA sequence surrounding the selected genomic position |
-| `label`        | Classification label: `donor`, `acceptor`, or `none`   |
-| `chrom`        | Chromosome or sequence identifier                      |
-| `strand`       | Genomic strand of the example                          |
-| `position`     | Genomic anchor position                                |
-| `intron_start` | Start coordinate of the associated intron              |
-| `intron_end`   | End coordinate of the associated intron                |
+| Column          | Description                                            |
+| --------------- | ------------------------------------------------------ |
+| `sequence`      | DNA sequence surrounding the selected genomic position |
+| `label`         | Classification label: `donor`, `acceptor`, or `none`   |
+| `chrom`         | Chromosome or sequence identifier                      |
+| `strand`        | Genomic strand of the example                          |
+| `position`      | Genomic anchor position                                |
+| `intron_start`  | Start coordinate of the associated intron              |
+| `intron_end`    | End coordinate of the associated intron                |
+| `negative_type` | Background or hard negative donor or acceptor          |
 
 With the default window size of 40, each sequence contains 80 nucleotides.
 
@@ -120,6 +121,12 @@ The script generates one donor and one acceptor example for every retained
 intron. It then generates as many negative examples as there are positive
 examples combined. Therefore, the `none` class is twice the size of either
 individual splice-site class.
+
+The ratio of background to hard negative examples can be variable set by
+
+```bash
+ python scripts/build_dataset.py --hard-negative-fraction 0.2
+```
 
 ## Dataset validation
 
@@ -166,19 +173,12 @@ python scripts/build_dataset.py --seed 123
 - Introns are inferred only from transcripts represented by `mRNA` and `exon`
   features.
 - Non-mRNA introns are not included.
-- Canonical motif checks are diagnostic and do not establish that every site
-  is biologically valid.
-- Model training and splice-site prediction are not yet implemented.
-- Repeated genomic regions can produce identical sequence windows at different
-  locations. The validation notebook uses one copy of each sequence-label
-  combination for sequence-level analysis.
 - All negative examples are currently recorded on the plus strand, so strand
   should not be used as a model feature.
 
 ## Planned work
 
 - Add automated tests for coordinate and strand handling.
-- Create sequence features for baseline models.
 - Compare statistical, machine-learning, and Bayesian approaches.
 - Use chromosome- or gene-aware cross-validation.
 - Evaluate donor, acceptor, and non-site predictions separately.
