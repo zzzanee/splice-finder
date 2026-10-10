@@ -1,0 +1,32 @@
+{
+  "genome": "data/raw/genome.fna",
+  "annotation": "data/raw/annotation.gff3",
+  "rows": 447286,
+  "predictors": 323,
+  "folds": [
+    [
+      "NC_003283.11"
+    ],
+    [
+      "NC_003284.9"
+    ],
+    [
+      "NC_003282.8"
+    ],
+    [
+      "NC_003280.10"
+    ],
+    [
+      "NC_003279.8",
+      "NC_003281.10"
+    ]
+  ],
+  "seed": 42,
+  "window": 40,
+  "hard_negative_fraction": 0.5,
+  "labels": [
+    "none",
+    "donor",
+    "acceptor"
+  ]
+}

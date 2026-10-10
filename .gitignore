@@ -3,8 +3,9 @@ data/raw/
 data/interim/
 data/processed/
 
-# Generated figures
-figures/
+# Large Files
+results/*/data/
+results/*/models/
 
 # Jupyter
 .ipynb_checkpoints/

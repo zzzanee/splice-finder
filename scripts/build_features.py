@@ -8,14 +8,14 @@
     Example:
         python scripts/build_features.py \
             --input data/processed/splice_dataset.csv \
-            --output data/processed/features.csv \
+            --output data/processed/features.csv
     
     Output:
         features.csv        
     
     See `scripts/python build_features.py --help` for options
     Date Created: 9/26/2026
-    Date Last Modified: 10/4/2026   
+    Date Last Modified: 10/8/2026   
 """
 import argparse
 import hashlib

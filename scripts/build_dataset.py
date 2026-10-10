@@ -6,11 +6,12 @@
         windows, and genomic hard negatives centered on GT or AG motifs 
 
     Example:
-        python build_dataset.py \
+        python scripts/build_dataset.py \
             --genome data/raw/genome.fna \
             --annotation data/raw/annotation.gff3 \
             --output data/processed/splice_dataset.csv \
             --window 40 \
+            --seed 42 \
             --hard-negative-fraction 0.5 \
             --exclude-chrom NC_001224.1
     
@@ -19,7 +20,7 @@
     
     See `python scripts/build_dataset.py --help` for options
     Date Created: 8/20/2026
-    Date Last Modified: 10/5/2026   
+    Date Last Modified: 10/8/2026   
 """
 import argparse
 import random
