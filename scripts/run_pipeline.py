@@ -82,7 +82,7 @@ def parse_args():
     parser.add_argument(
         "--annotation", 
         type=Path, 
-        required=True,
+        default=Path("data/raw/annotation.gff3"),
         help="Genome annotation in GFF3 format.",    
     )
     parser.add_argument(
